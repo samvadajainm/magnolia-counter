@@ -128,6 +128,39 @@
         }
         .results-table .meta { font-size: 0.75rem; color: #8a9e8a; }
 
+        /* Annotated images */
+        .annotated-images { margin-top: 1.5rem; }
+        .annotated-card {
+            background: #fff; border-radius: 10px;
+            overflow: hidden; margin-bottom: 1.2rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        .annotated-card .card-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0.7rem 1rem; background: #f5f8f5;
+            border-bottom: 1px solid #eef2ee;
+        }
+        .annotated-card .card-header h3 {
+            font-size: 0.85rem; font-weight: 600; color: #2a4a2a;
+        }
+        .annotated-card .card-header .badge {
+            background: #2a6e2a; color: #fff; font-size: 0.75rem;
+            font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 10px;
+        }
+        .annotated-card .card-body {
+            padding: 0.5rem; position: relative;
+        }
+        .annotated-card canvas {
+            width: 100%; height: auto; display: block; border-radius: 6px;
+        }
+        .download-btn {
+            display: inline-block; margin: 0.5rem; padding: 0.4rem 0.8rem;
+            font-size: 0.75rem; background: #e8f0e8; color: #2a4a2a;
+            border: none; border-radius: 6px; cursor: pointer;
+            text-decoration: none; font-weight: 600;
+        }
+        .download-btn:hover { background: #d0e0d0; }
+
         @media (max-width: 500px) {
             body { padding: 1rem; }
             .total-card .big-number { font-size: 2.4rem; }
@@ -180,6 +213,8 @@
                 <tbody id="resultsBody"></tbody>
             </table>
         </div>
+
+        <div class="annotated-images" id="annotatedImages"></div>
     </div>
 </div>
 
@@ -444,7 +479,62 @@ async function processImage(file, onProgress) {
         rawDetections: rawCount,
         afterNms: afterNms.length,
         plantCount: afterDedup.length,
+        boxes: afterDedup,       // final boxes for annotation
+        sourceCanvas: canvas,    // original image canvas
     };
+}
+
+// ── Draw annotated image ──────────────────────────────────
+function drawAnnotatedImage(sourceCanvas, boxes, filename) {
+    const annoCanvas = document.createElement("canvas");
+    annoCanvas.width = sourceCanvas.width;
+    annoCanvas.height = sourceCanvas.height;
+    const ctx = annoCanvas.getContext("2d");
+
+    // Draw original image
+    ctx.drawImage(sourceCanvas, 0, 0);
+
+    // Scale line width relative to image size
+    const shortSide = Math.min(sourceCanvas.width, sourceCanvas.height);
+    const lineWidth = Math.max(2, Math.round(shortSide / 500));
+    const fontSize = Math.max(12, Math.round(shortSide / 300));
+
+    ctx.strokeStyle = "#00FF00";
+    ctx.lineWidth = lineWidth;
+    ctx.font = `bold ${fontSize}px sans-serif`;
+
+    for (let i = 0; i < boxes.length; i++) {
+        const [cx, cy, w, h, conf] = boxes[i];
+        const x1 = cx - w / 2;
+        const y1 = cy - h / 2;
+
+        // Draw box
+        ctx.strokeRect(x1, y1, w, h);
+
+        // Draw label background
+        const label = `${(conf * 100).toFixed(0)}%`;
+        const textWidth = ctx.measureText(label).width;
+        const labelH = fontSize + 4;
+        ctx.fillStyle = "rgba(0, 180, 0, 0.7)";
+        ctx.fillRect(x1, y1 - labelH, textWidth + 6, labelH);
+
+        // Draw label text
+        ctx.fillStyle = "#fff";
+        ctx.fillText(label, x1 + 3, y1 - 4);
+    }
+
+    // Draw total count watermark in top-left
+    const countLabel = `${boxes.length} plants detected`;
+    const wmFontSize = Math.max(16, Math.round(shortSide / 150));
+    ctx.font = `bold ${wmFontSize}px sans-serif`;
+    const wmPad = Math.round(wmFontSize * 0.6);
+    const wmTextWidth = ctx.measureText(countLabel).width;
+    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+    ctx.fillRect(wmPad, wmPad, wmTextWidth + wmPad * 2, wmFontSize + wmPad);
+    ctx.fillStyle = "#00FF00";
+    ctx.fillText(countLabel, wmPad * 2, wmPad + wmFontSize - 2);
+
+    return annoCanvas;
 }
 
 // ── Count button handler ───────────────────────────────────
@@ -480,7 +570,7 @@ countBtn.addEventListener("click", async () => {
 
     // Show results
     progressFill.style.width = "100%";
-    statusText.textContent = "Done!";
+    statusText.textContent = "Done! Drawing annotations...";
 
     totalCount.textContent = totalPlants.toLocaleString();
     totalSub.textContent = `across ${results.length} image(s)`;
@@ -498,6 +588,40 @@ countBtn.addEventListener("click", async () => {
         </tr>`;
     }).join("");
 
+    // Draw annotated images
+    const annotatedContainer = document.getElementById("annotatedImages");
+    annotatedContainer.innerHTML = "";
+
+    for (const r of results) {
+        if (r.error || !r.sourceCanvas) continue;
+
+        const annoCanvas = drawAnnotatedImage(r.sourceCanvas, r.boxes, r.filename);
+
+        const card = document.createElement("div");
+        card.className = "annotated-card";
+
+        const header = document.createElement("div");
+        header.className = "card-header";
+        header.innerHTML = `<h3>${r.filename}</h3><span class="badge">${r.plantCount} plants</span>`;
+
+        const body = document.createElement("div");
+        body.className = "card-body";
+        body.appendChild(annoCanvas);
+
+        // Download button
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "download-btn";
+        dlBtn.textContent = "⬇ Download annotated image";
+        dlBtn.download = r.filename.replace(/\.[^.]+$/, "") + "_annotated.jpg";
+        dlBtn.href = annoCanvas.toDataURL("image/jpeg", 0.92);
+        body.appendChild(dlBtn);
+
+        card.appendChild(header);
+        card.appendChild(body);
+        annotatedContainer.appendChild(card);
+    }
+
+    statusText.textContent = "Done!";
     resultsSection.style.display = "block";
 
     btnText.textContent = "Count Plants";
