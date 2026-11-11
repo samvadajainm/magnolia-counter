@@ -16,7 +16,7 @@
             padding: 2rem 1rem;
         }
 
-        .container { max-width: 720px; margin: 0 auto; }
+        .container { max-width: 760px; margin: 0 auto; }
 
         header { text-align: center; margin-bottom: 2rem; }
         header h1 { font-size: 1.6rem; font-weight: 700; color: #1a3a1a; margin-bottom: 0.3rem; }
@@ -106,6 +106,11 @@
         }
         .total-card .label { font-size: 0.9rem; opacity: 0.85; }
         .total-card .sub { font-size: 0.8rem; opacity: 0.65; margin-top: 0.3rem; }
+        .total-card .mode-badge {
+            display: inline-block; margin-top: 0.4rem;
+            font-size: 0.7rem; background: rgba(255,255,255,0.2);
+            padding: 0.15rem 0.6rem; border-radius: 10px;
+        }
 
         .results-table {
             width: 100%; background: #fff; border-radius: 10px;
@@ -114,12 +119,12 @@
         .results-table table { width: 100%; border-collapse: collapse; }
         .results-table th {
             background: #f5f8f5; text-align: left;
-            padding: 0.7rem 1rem; font-size: 0.75rem;
+            padding: 0.7rem 0.8rem; font-size: 0.72rem;
             text-transform: uppercase; letter-spacing: 0.04em;
             color: #5a6e5a; font-weight: 600;
         }
         .results-table td {
-            padding: 0.65rem 1rem; font-size: 0.85rem;
+            padding: 0.65rem 0.8rem; font-size: 0.85rem;
             border-top: 1px solid #eef2ee;
         }
         .results-table tr:hover td { background: #fafcfa; }
@@ -127,6 +132,7 @@
             font-weight: 700; font-size: 1rem; color: #2a6e2a;
         }
         .results-table .meta { font-size: 0.75rem; color: #8a9e8a; }
+        .results-table .winner { background: #eef8ee; }
 
         /* Annotated images */
         .annotated-images { margin-top: 1.5rem; }
@@ -147,6 +153,11 @@
             background: #2a6e2a; color: #fff; font-size: 0.75rem;
             font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 10px;
         }
+        .annotated-card .card-header .tile-badge {
+            background: #3a5e8a; color: #fff; font-size: 0.68rem;
+            font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 10px;
+            margin-left: 0.4rem;
+        }
         .annotated-card .card-body {
             padding: 0.5rem; position: relative;
         }
@@ -161,10 +172,20 @@
         }
         .download-btn:hover { background: #d0e0d0; }
 
+        .pipeline-info {
+            margin-top: 1rem; padding: 0.8rem 1rem;
+            background: #fff; border-radius: 10px;
+            font-size: 0.78rem; color: #5a6e5a;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            line-height: 1.5;
+        }
+        .pipeline-info strong { color: #2a4a2a; }
+
         @media (max-width: 500px) {
             body { padding: 1rem; }
             .total-card .big-number { font-size: 2.4rem; }
-            .results-table th, .results-table td { padding: 0.5rem 0.6rem; }
+            .results-table th, .results-table td { padding: 0.5rem 0.4rem; }
+            .results-table th { font-size: 0.65rem; }
         }
     </style>
 </head>
@@ -172,11 +193,11 @@
 
 <div class="container">
     <header>
-        <h1>🌸 Magnolia Plant Counter</h1>
-        <p>Upload drone images &bull; YOLOv8n + ONNX Runtime &bull; Tiled inference with NMS + dedup</p>
+        <h1>Magnolia Plant Counter</h1>
+        <p>Upload drone images &bull; YOLOv8n + ONNX Runtime &bull; Multi-scale tiled inference</p>
     </header>
 
-    <div class="model-status loading" id="modelStatus">Loading model (~6 MB)...</div>
+    <div class="model-status loading" id="modelStatus">Loading model (~12 MB)...</div>
 
     <div class="upload-area" id="uploadArea">
         <input type="file" id="fileInput" accept="image/*" multiple>
@@ -204,15 +225,24 @@
             <div class="big-number" id="totalCount">0</div>
             <div class="label">Total Plants Detected</div>
             <div class="sub" id="totalSub"></div>
+            <div class="mode-badge" id="modeBadge"></div>
         </div>
         <div class="results-table">
             <table>
                 <thead>
-                    <tr><th>Image</th><th>Tiles</th><th>Raw</th><th>After NMS</th><th>Count</th></tr>
+                    <tr>
+                        <th>Image</th>
+                        <th>Tile 1024</th>
+                        <th>Tile 640</th>
+                        <th>Best</th>
+                        <th>Selected</th>
+                    </tr>
                 </thead>
                 <tbody id="resultsBody"></tbody>
             </table>
         </div>
+
+        <div class="pipeline-info" id="pipelineInfo"></div>
 
         <div class="annotated-images" id="annotatedImages"></div>
     </div>
@@ -221,12 +251,17 @@
 <script>
 // ── Config ─────────────────────────────────────────────────
 const MODEL_URL       = "best.onnx";
-const TILE_SIZE       = 1024;
-const OVERLAP         = 205;
+const INPUT_SIZE      = 640;   // YOLOv8n expects 640x640
+
+// Tile sizes to try — each runs the full pipeline independently
+const TILE_CONFIGS = [
+    { tileSize: 1024, overlap: 205, label: "1024×1024" },
+    { tileSize: 640,  overlap: 128, label: "640×640" },
+];
+
 const CONF            = 0.5;
 const NMS_IOU         = 0.3;
 const MIN_CENTER_DIST = 300;
-const INPUT_SIZE      = 640;   // YOLOv8n expects 640x640
 
 let session = null;
 
@@ -245,16 +280,19 @@ const resultsBody    = document.getElementById("resultsBody");
 const totalCount     = document.getElementById("totalCount");
 const totalSub       = document.getElementById("totalSub");
 const modelStatus    = document.getElementById("modelStatus");
+const modeBadge      = document.getElementById("modeBadge");
+const pipelineInfo   = document.getElementById("pipelineInfo");
 
 let selectedFiles = [];
 
 // ── Load ONNX model ────────────────────────────────────────
 async function loadModel() {
     try {
-        // Use WASM backend (works everywhere)
         ort.env.wasm.wasmPaths = "https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.17.3/";
+        ort.env.wasm.numThreads = 1;
         session = await ort.InferenceSession.create(MODEL_URL, {
             executionProviders: ["wasm"],
+            graphOptimizationLevel: "all",
         });
         modelStatus.textContent = "Model loaded — ready to count plants";
         modelStatus.className = "model-status ready";
@@ -310,7 +348,6 @@ function loadImage(file) {
 
 // ── Tiling ─────────────────────────────────────────────────
 function tileImage(canvas, tileSize, overlap) {
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     const w = canvas.width, h = canvas.height;
     const stride = tileSize - overlap;
     const tiles = [];
@@ -319,18 +356,12 @@ function tileImage(canvas, tileSize, overlap) {
         for (let col = 0; col < w; col += stride) {
             const rEnd = Math.min(row + tileSize, h);
             const cEnd = Math.min(col + tileSize, w);
-
-            // Create tile canvas
             const tileCanvas = document.createElement("canvas");
             tileCanvas.width = tileSize;
             tileCanvas.height = tileSize;
             const tileCtx = tileCanvas.getContext("2d");
-
-            // Black background (zero-pad)
-            tileCtx.fillStyle = "#000";
+            tileCtx.fillStyle = "rgb(114,114,114)";
             tileCtx.fillRect(0, 0, tileSize, tileSize);
-
-            // Draw portion of image
             tileCtx.drawImage(canvas, col, row, cEnd - col, rEnd - row, 0, 0, cEnd - col, rEnd - row);
             tiles.push({ canvas: tileCanvas, row, col });
         }
@@ -340,51 +371,37 @@ function tileImage(canvas, tileSize, overlap) {
 
 // ── Preprocessing: tile canvas → ONNX tensor ──────────────
 function preprocessTile(tileCanvas, inputSize) {
-    // Resize tile to inputSize x inputSize
     const resized = document.createElement("canvas");
     resized.width = inputSize;
     resized.height = inputSize;
-    const rCtx = resized.getContext("2d");
+    const rCtx = resized.getContext("2d", { willReadFrequently: true });
+    rCtx.fillStyle = "rgb(114,114,114)";
+    rCtx.fillRect(0, 0, inputSize, inputSize);
     rCtx.drawImage(tileCanvas, 0, 0, inputSize, inputSize);
-
     const imgData = rCtx.getImageData(0, 0, inputSize, inputSize).data;
-
-    // Convert to CHW float32 normalized [0, 1]
     const float32 = new Float32Array(3 * inputSize * inputSize);
     for (let i = 0; i < inputSize * inputSize; i++) {
-        float32[i]                          = imgData[i * 4]     / 255.0; // R
-        float32[i + inputSize * inputSize]     = imgData[i * 4 + 1] / 255.0; // G
-        float32[i + 2 * inputSize * inputSize] = imgData[i * 4 + 2] / 255.0; // B
+        float32[i]                              = imgData[i * 4]     / 255.0;
+        float32[i + inputSize * inputSize]      = imgData[i * 4 + 1] / 255.0;
+        float32[i + 2 * inputSize * inputSize]  = imgData[i * 4 + 2] / 255.0;
     }
-
     return new ort.Tensor("float32", float32, [1, 3, inputSize, inputSize]);
 }
 
-// ── Post-processing: parse YOLOv8 output ───────────────────
+// ── Parse YOLOv8 output ───────────────────────────────────
 function parseYOLOv8Output(output, tileRow, tileCol, tileSize, inputSize, confThresh) {
-    // YOLOv8 output shape: [1, 5, 8400] for single-class
-    // Rows: cx, cy, w, h, class_conf
     const data = output.data;
     const numDetections = output.dims[2]; // 8400
-    const numFields = output.dims[1];     // 5 for single class (4 box + 1 class)
     const boxes = [];
-
     const scale = tileSize / inputSize;
 
     for (let i = 0; i < numDetections; i++) {
-        // Class confidence is at index 4 (single class)
         const conf = data[4 * numDetections + i];
         if (conf < confThresh) continue;
-
-        let cx = data[0 * numDetections + i] * scale;
-        let cy = data[1 * numDetections + i] * scale;
+        let cx = data[0 * numDetections + i] * scale + tileCol;
+        let cy = data[1 * numDetections + i] * scale + tileRow;
         let w  = data[2 * numDetections + i] * scale;
         let h  = data[3 * numDetections + i] * scale;
-
-        // Map to global coordinates
-        cx += tileCol;
-        cy += tileRow;
-
         boxes.push([cx, cy, w, h, conf]);
     }
     return boxes;
@@ -430,71 +447,98 @@ function centerDistanceDedup(boxes, minDist) {
     return keep;
 }
 
-// ── Main inference pipeline ────────────────────────────────
-async function processImage(file, onProgress) {
-    const img = await loadImage(file);
-
-    // Draw full image to canvas
-    const canvas = document.createElement("canvas");
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0);
-    URL.revokeObjectURL(img.src);
-
-    // Tile
-    const tiles = tileImage(canvas, TILE_SIZE, OVERLAP);
+// ── Run tiled pipeline for one tile config ─────────────────
+async function runTiledPipeline(sourceCanvas, tileSize, overlap, onProgress) {
+    const tiles = tileImage(sourceCanvas, tileSize, overlap);
     let allBoxes = [];
 
     for (let t = 0; t < tiles.length; t++) {
         const { canvas: tileCanvas, row, col } = tiles[t];
-
-        // Preprocess
         const tensor = preprocessTile(tileCanvas, INPUT_SIZE);
-
-        // Run inference
         const inputName = session.inputNames[0];
         const results = await session.run({ [inputName]: tensor });
-        const outputName = session.outputNames[0];
-        const output = results[outputName];
-
-        // Parse detections
-        const boxes = parseYOLOv8Output(output, row, col, TILE_SIZE, INPUT_SIZE, CONF);
+        const output = results[session.outputNames[0]];
+        const boxes = parseYOLOv8Output(output, row, col, tileSize, INPUT_SIZE, CONF);
         allBoxes = allBoxes.concat(boxes);
-
         if (onProgress) onProgress(t + 1, tiles.length);
     }
 
     const rawCount = allBoxes.length;
-
-    // NMS
     const afterNms = nmsBoxes(allBoxes, NMS_IOU);
-
-    // Center-distance dedup
     const afterDedup = centerDistanceDedup(afterNms, MIN_CENTER_DIST);
 
     return {
-        filename: file.name,
+        tileSize,
         tilesProcessed: tiles.length,
         rawDetections: rawCount,
         afterNms: afterNms.length,
         plantCount: afterDedup.length,
-        boxes: afterDedup,       // final boxes for annotation
-        sourceCanvas: canvas,    // original image canvas
+        boxes: afterDedup,
+    };
+}
+
+// ── Process one image with all tile configs ────────────────
+async function processImage(file, onProgress) {
+    const img = await loadImage(file);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    canvas.getContext("2d").drawImage(img, 0, 0);
+    URL.revokeObjectURL(img.src);
+
+    // Count total tiles across all configs for progress
+    const allTileCounts = TILE_CONFIGS.map(cfg => {
+        const stride = cfg.tileSize - cfg.overlap;
+        const cols = Math.ceil(canvas.width / stride);
+        const rows = Math.ceil(canvas.height / stride);
+        return cols * rows;
+    });
+    const grandTotal = allTileCounts.reduce((a, b) => a + b, 0);
+    let completed = 0;
+
+    const pipelineResults = [];
+
+    for (let c = 0; c < TILE_CONFIGS.length; c++) {
+        const cfg = TILE_CONFIGS[c];
+        const result = await runTiledPipeline(canvas, cfg.tileSize, cfg.overlap, (done, total) => {
+            if (onProgress) onProgress(completed + done, grandTotal, cfg.label);
+        });
+        result.label = cfg.label;
+        pipelineResults.push(result);
+        completed += allTileCounts[c];
+    }
+
+    // Pick the best: highest plant count wins
+    let bestIdx = 0;
+    for (let i = 1; i < pipelineResults.length; i++) {
+        if (pipelineResults[i].plantCount > pipelineResults[bestIdx].plantCount) {
+            bestIdx = i;
+        }
+    }
+
+    const best = pipelineResults[bestIdx];
+
+    return {
+        filename: file.name,
+        pipelineResults,
+        bestIdx,
+        plantCount: best.plantCount,
+        boxes: best.boxes,
+        selectedTile: best.label,
+        sourceCanvas: canvas,
     };
 }
 
 // ── Draw annotated image ──────────────────────────────────
-function drawAnnotatedImage(sourceCanvas, boxes, filename) {
+function drawAnnotatedImage(sourceCanvas, boxes) {
     const annoCanvas = document.createElement("canvas");
     annoCanvas.width = sourceCanvas.width;
     annoCanvas.height = sourceCanvas.height;
     const ctx = annoCanvas.getContext("2d");
 
-    // Draw original image
     ctx.drawImage(sourceCanvas, 0, 0);
 
-    // Scale line width relative to image size
     const shortSide = Math.min(sourceCanvas.width, sourceCanvas.height);
     const lineWidth = Math.max(2, Math.round(shortSide / 500));
     const fontSize = Math.max(12, Math.round(shortSide / 300));
@@ -503,27 +547,21 @@ function drawAnnotatedImage(sourceCanvas, boxes, filename) {
     ctx.lineWidth = lineWidth;
     ctx.font = `bold ${fontSize}px sans-serif`;
 
-    for (let i = 0; i < boxes.length; i++) {
-        const [cx, cy, w, h, conf] = boxes[i];
+    for (const [cx, cy, w, h, conf] of boxes) {
         const x1 = cx - w / 2;
         const y1 = cy - h / 2;
 
-        // Draw box
         ctx.strokeRect(x1, y1, w, h);
 
-        // Draw label background
         const label = `${(conf * 100).toFixed(0)}%`;
         const textWidth = ctx.measureText(label).width;
         const labelH = fontSize + 4;
         ctx.fillStyle = "rgba(0, 180, 0, 0.7)";
         ctx.fillRect(x1, y1 - labelH, textWidth + 6, labelH);
-
-        // Draw label text
         ctx.fillStyle = "#fff";
         ctx.fillText(label, x1 + 3, y1 - 4);
     }
 
-    // Draw total count watermark in top-left
     const countLabel = `${boxes.length} plants detected`;
     const wmFontSize = Math.max(16, Math.round(shortSide / 150));
     ctx.font = `bold ${wmFontSize}px sans-serif`;
@@ -552,13 +590,13 @@ countBtn.addEventListener("click", async () => {
 
     for (let f = 0; f < selectedFiles.length; f++) {
         const file = selectedFiles[f];
-        statusText.textContent = `Image ${f + 1}/${selectedFiles.length}: ${file.name}`;
 
         try {
-            const result = await processImage(file, (done, total) => {
-                const imageProgress = (f + done / total) / selectedFiles.length;
+            const result = await processImage(file, (done, total, currentLabel) => {
+                const imageBase = f / selectedFiles.length;
+                const imageProgress = imageBase + (done / total) / selectedFiles.length;
                 progressFill.style.width = (imageProgress * 100).toFixed(1) + "%";
-                statusText.textContent = `Image ${f + 1}/${selectedFiles.length}: ${file.name} — tile ${done}/${total}`;
+                statusText.textContent = `Image ${f + 1}/${selectedFiles.length}: ${file.name} — ${currentLabel} tile ${done}/${total}`;
             });
             results.push(result);
             totalPlants += result.plantCount;
@@ -574,19 +612,30 @@ countBtn.addEventListener("click", async () => {
 
     totalCount.textContent = totalPlants.toLocaleString();
     totalSub.textContent = `across ${results.length} image(s)`;
+    modeBadge.textContent = "Multi-scale: best of " + TILE_CONFIGS.map(c => c.label).join(" vs ");
 
     resultsBody.innerHTML = results.map(r => {
         if (r.error) {
             return `<tr><td>${r.filename}</td><td colspan="3" style="color:#c44;font-size:0.8rem">${r.error}</td><td>—</td></tr>`;
         }
+        const p = r.pipelineResults;
+        // Find which indices correspond to 1024 and 640
+        const r1024 = p.find(x => x.tileSize === 1024);
+        const r640  = p.find(x => x.tileSize === 640);
         return `<tr>
             <td>${r.filename}</td>
-            <td class="meta">${r.tilesProcessed}</td>
-            <td class="meta">${r.rawDetections.toLocaleString()}</td>
-            <td class="meta">${r.afterNms.toLocaleString()}</td>
+            <td class="meta ${r.selectedTile === '1024×1024' ? 'winner' : ''}">${r1024 ? r1024.plantCount : '—'} <span style="font-size:0.65rem;color:#aaa">(${r1024 ? r1024.tilesProcessed : 0}t)</span></td>
+            <td class="meta ${r.selectedTile === '640×640' ? 'winner' : ''}">${r640 ? r640.plantCount : '—'} <span style="font-size:0.65rem;color:#aaa">(${r640 ? r640.tilesProcessed : 0}t)</span></td>
             <td class="count-cell">${r.plantCount.toLocaleString()}</td>
+            <td class="meta">${r.selectedTile}</td>
         </tr>`;
     }).join("");
+
+    // Pipeline explanation
+    const selectionSummary = results.filter(r => !r.error).map(r => {
+        return `<strong>${r.filename}</strong>: ${r.selectedTile} selected (${r.pipelineResults.map(p => `${p.label}=${p.plantCount}`).join(", ")})`;
+    }).join("<br>");
+    pipelineInfo.innerHTML = `<strong>How it works:</strong> Each image is tiled at two scales (1024×1024 and 640×640). Both go through NMS + center-distance dedup independently. The tile size yielding the highest plant count is selected as the final result — larger tiles work well for spaced-out plants, smaller tiles catch densely packed ones.<br><br>${selectionSummary}`;
 
     // Draw annotated images
     const annotatedContainer = document.getElementById("annotatedImages");
@@ -595,20 +644,19 @@ countBtn.addEventListener("click", async () => {
     for (const r of results) {
         if (r.error || !r.sourceCanvas) continue;
 
-        const annoCanvas = drawAnnotatedImage(r.sourceCanvas, r.boxes, r.filename);
+        const annoCanvas = drawAnnotatedImage(r.sourceCanvas, r.boxes);
 
         const card = document.createElement("div");
         card.className = "annotated-card";
 
         const header = document.createElement("div");
         header.className = "card-header";
-        header.innerHTML = `<h3>${r.filename}</h3><span class="badge">${r.plantCount} plants</span>`;
+        header.innerHTML = `<h3>${r.filename}</h3><span class="badge">${r.plantCount} plants</span><span class="tile-badge">${r.selectedTile}</span>`;
 
         const body = document.createElement("div");
         body.className = "card-body";
         body.appendChild(annoCanvas);
 
-        // Download button
         const dlBtn = document.createElement("a");
         dlBtn.className = "download-btn";
         dlBtn.textContent = "⬇ Download annotated image";
