@@ -223,11 +223,8 @@
                 <thead>
                     <tr>
                         <th>Image</th>
-                        <th>LB</th>
-                        <th>1024</th>
-                        <th>640</th>
-                        <th>512</th>
-                        <th>320</th>
+                        <th>Letterbox</th>
+                        <th>1024 Tiled</th>
                         <th>Best</th>
                         <th>Scale</th>
                     </tr>
@@ -246,25 +243,20 @@
 const MODEL_URL  = "best.onnx";
 const INPUT_SIZE = 640;
 
-// Tile configs: run in order. Letterbox + 1024 + 640 always run.
-// 512 and 320 run only if needed (adaptive).
+// Tile config: 1024 only
 const TILE_CONFIGS = [
     { tileSize: 1024, overlap: 205, label: "1024" },
-    { tileSize: 640,  overlap: 128, label: "640"  },
-    { tileSize: 512,  overlap: 102, label: "512"  },
-    { tileSize: 320,  overlap: 64,  label: "320"  },
 ];
 
-// Indices: 0=1024, 1=640 always run; 2=512, 3=320 are adaptive
-const ALWAYS_RUN = 2;  // run first N tile configs always
+const ALWAYS_RUN = 1;
 
 // If best count from always-run configs is <= this, try finer scales.
 const LOW_COUNT_THRESHOLD = 3;
 
 // Match Harshitha's proven settings
-const CONF            = 0.15;
+const CONF            = 0.20;
 const NMS_IOU         = 0.45;
-const MIN_CENTER_DIST = 50;  // only catch near-exact duplicates; NMS handles tile overlaps
+const MIN_CENTER_DIST = 150;
 
 let session = null;
 
@@ -735,12 +727,9 @@ countBtn.addEventListener("click", async () => {
         };
 
         return `<tr>
-            <td>${r.filename}${r.triedFiner ? ' <span style="font-size:0.6rem;color:#8a6e2a" title="Low count detected, tried finer tiles">&#x1F50D;</span>' : ''}</td>
+            <td>${r.filename}</td>
             ${cell("LB")}
             ${cell("1024")}
-            ${cell("640")}
-            ${cell("512")}
-            ${cell("320")}
             <td class="count-cell">${r.plantCount.toLocaleString()}</td>
             <td class="meta">${r.selectedTile}</td>
         </tr>`;
