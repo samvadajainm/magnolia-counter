@@ -194,7 +194,7 @@
         <input type="file" id="fileInput" accept="image/*" multiple>
         <div class="upload-icon">📁</div>
         <h2>Drop images here or click to browse</h2>
-        <p>JPG, PNG, TIFF &mdash; multiple files supported</p>
+        <p>JPG, PNG, TIFF - multiple files supported</p>
     </div>
 
     <div class="file-list" id="fileList"></div>
@@ -292,7 +292,7 @@ async function loadModel() {
             executionProviders: ["wasm"],
             graphOptimizationLevel: "all",
         });
-        modelStatus.textContent = "Model loaded — ready to count plants";
+        modelStatus.textContent = "Model loaded - ready to count plants";
         modelStatus.className = "model-status ready";
         updateButtonState();
     } catch (e) {
@@ -719,7 +719,6 @@ countBtn.addEventListener("click", async () => {
         return `<strong>${r.filename}</strong>: selected ${r.selectedTile} (${counts})${finerNote}`;
     }).join("<br>");
 
-    pipelineInfo.innerHTML = `<strong>How it works:</strong> Each image gets a fast letterbox pass (full image → 640×640), then adaptive tiled inference — tile size is chosen by image resolution (≥1500px short side → 1024 tiles, 800–1500px → 512 tiles, &lt;800px → 320 tiles). Smaller tiles magnify plants for the model. The scale with the highest count after NMS + center-distance dedup wins. Confidence: ${CONF}, NMS IoU: ${NMS_IOU}, center dedup: ${MIN_CENTER_DIST}px.<br><br>${details}`;
 
     // Annotated images
     const container = document.getElementById("annotatedImages");
