@@ -223,8 +223,9 @@
                 <thead>
                     <tr>
                         <th>Image</th>
+                        <th>Resolution</th>
                         <th>Letterbox</th>
-                        <th>1024 Tiled</th>
+                        <th>Tiled</th>
                         <th>Best</th>
                         <th>Scale</th>
                     </tr>
@@ -243,15 +244,17 @@
 const MODEL_URL  = "best.onnx";
 const INPUT_SIZE = 640;
 
-// Tile config: 1024 only
-const TILE_CONFIGS = [
-    { tileSize: 1024, overlap: 205, label: "1024" },
-];
+// Tile configs by image size — chosen automatically
+const TILE_LARGE = { tileSize: 1024, overlap: 205, label: "1024" };   // for images > 1500px shortest side
+const TILE_MED   = { tileSize: 512,  overlap: 102, label: "512"  };   // for images 800-1500px
+const TILE_SMALL = { tileSize: 320,  overlap: 64,  label: "320"  };   // for images < 800px
 
-const ALWAYS_RUN = 1;
-
-// If best count from always-run configs is <= this, try finer scales.
-const LOW_COUNT_THRESHOLD = 3;
+function pickTileConfig(imgW, imgH) {
+    const shortSide = Math.min(imgW, imgH);
+    if (shortSide >= 1500) return TILE_LARGE;
+    if (shortSide >= 800)  return TILE_MED;
+    return TILE_SMALL;
+}
 
 // Match Harshitha's proven settings
 const CONF            = 0.20;
@@ -553,7 +556,7 @@ async function processImage(file, imageIdx, totalImages, updateOverallProgress) 
 
     const scaleResults = [];
 
-    // ── Letterbox pass (fast, single inference, like Harshitha's) ──
+    // ── Letterbox pass (fast, single inference) ──
     updateOverallProgress(
         `Image ${imageIdx + 1}/${totalImages}: ${file.name} — letterbox pass...`,
         imageIdx / totalImages
@@ -561,54 +564,22 @@ async function processImage(file, imageIdx, totalImages, updateOverallProgress) 
     const lbResult = await runLetterbox(canvas);
     scaleResults.push(lbResult);
 
-    // ── Tiled passes: phase 1 (1024, 640 always run) ──
-    const phase1Configs = TILE_CONFIGS.slice(0, ALWAYS_RUN);
-    const phase2Configs = TILE_CONFIGS.slice(ALWAYS_RUN);
+    // ── Tiled pass: tile size chosen by image resolution ──
+    const tileCfg = pickTileConfig(imgW, imgH);
+    const totalTiles = countTiles(imgW, imgH, tileCfg.tileSize, tileCfg.overlap);
 
-    let phase1TotalTiles = 0;
-    for (const cfg of phase1Configs) {
-        phase1TotalTiles += countTiles(imgW, imgH, cfg.tileSize, cfg.overlap);
-    }
+    updateOverallProgress(
+        `Image ${imageIdx + 1}/${totalImages}: ${file.name} — ${tileCfg.label} tiles (${imgW}×${imgH} → ${tileCfg.label}px tiles)...`,
+        (imageIdx + 0.05) / totalImages
+    );
 
-    let tilesCompleted = 0;
-
-    for (const cfg of phase1Configs) {
-        const result = await runScale(canvas, cfg, (done, total) => {
-            const td = tilesCompleted + done;
-            updateOverallProgress(
-                `Image ${imageIdx + 1}/${totalImages}: ${file.name} — ${cfg.label} tiles (${done}/${total})`,
-                (imageIdx + 0.05 + 0.65 * td / phase1TotalTiles) / totalImages
-            );
-        });
-        tilesCompleted += result.tilesProcessed;
-        scaleResults.push(result);
-    }
-
-    // ── Phase 2: finer tiles if counts are still low ──
-    let bestSoFar = Math.max(...scaleResults.map(r => r.plantCount));
-    let needsFiner = bestSoFar <= LOW_COUNT_THRESHOLD;
-
-    if (needsFiner) {
-        for (const cfg of phase2Configs) {
-            updateOverallProgress(
-                `Image ${imageIdx + 1}/${totalImages}: ${file.name} — low count, trying ${cfg.label} tiles...`,
-                (imageIdx + 0.75) / totalImages
-            );
-
-            const result = await runScale(canvas, cfg, (done, total) => {
-                updateOverallProgress(
-                    `Image ${imageIdx + 1}/${totalImages}: ${file.name} — ${cfg.label} tiles (${done}/${total})`,
-                    (imageIdx + 0.75 + 0.25 * done / total) / totalImages
-                );
-            });
-            scaleResults.push(result);
-
-            if (result.plantCount > bestSoFar * 2 && result.plantCount > LOW_COUNT_THRESHOLD) {
-                break;
-            }
-            bestSoFar = Math.max(bestSoFar, result.plantCount);
-        }
-    }
+    const tileResult = await runScale(canvas, tileCfg, (done, total) => {
+        updateOverallProgress(
+            `Image ${imageIdx + 1}/${totalImages}: ${file.name} — ${tileCfg.label} tiles (${done}/${total})`,
+            (imageIdx + 0.05 + 0.9 * done / total) / totalImages
+        );
+    });
+    scaleResults.push(tileResult);
 
     // Pick best: highest count
     let bestIdx = 0;
@@ -621,13 +592,14 @@ async function processImage(file, imageIdx, totalImages, updateOverallProgress) 
 
     return {
         filename: file.name,
+        imgW: imgW,
+        imgH: imgH,
         scaleResults,
         bestIdx,
         plantCount: best.plantCount,
         boxes: best.boxes,
         selectedTile: best.label,
         sourceCanvas: canvas,
-        triedFiner: needsFiner,
     };
 }
 
@@ -726,10 +698,15 @@ countBtn.addEventListener("click", async () => {
             return `<td class="meta ${isWinner ? 'winner' : ''}">${s.plantCount} <span style="font-size:0.6rem;color:#aaa">(${tInfo})</span></td>`;
         };
 
+        // Find the tiled result (non-LB)
+        const tiledResult = r.scaleResults.find(s => s.label !== "LB");
+        const tiledLabel = tiledResult ? tiledResult.label : "—";
+
         return `<tr>
             <td>${r.filename}</td>
+            <td class="meta">${r.imgW}×${r.imgH}</td>
             ${cell("LB")}
-            ${cell("1024")}
+            ${cell(tiledLabel)}
             <td class="count-cell">${r.plantCount.toLocaleString()}</td>
             <td class="meta">${r.selectedTile}</td>
         </tr>`;
@@ -742,7 +719,7 @@ countBtn.addEventListener("click", async () => {
         return `<strong>${r.filename}</strong>: selected ${r.selectedTile} (${counts})${finerNote}`;
     }).join("<br>");
 
-    pipelineInfo.innerHTML = `<strong>How it works:</strong> Each image first gets a fast <em>letterbox</em> pass (full image → 640×640, like Harshitha's model), then tiled inference at 1024×1024 and 640×640. If all scales produce very low counts (≤${LOW_COUNT_THRESHOLD}), the pipeline tries 512 and 320 tiles which magnify small plants. The scale with the highest count after NMS + dedup wins. Confidence: ${CONF}, NMS IoU: ${NMS_IOU}.<br><br>${details}`;
+    pipelineInfo.innerHTML = `<strong>How it works:</strong> Each image gets a fast letterbox pass (full image → 640×640), then adaptive tiled inference — tile size is chosen by image resolution (≥1500px short side → 1024 tiles, 800–1500px → 512 tiles, &lt;800px → 320 tiles). Smaller tiles magnify plants for the model. The scale with the highest count after NMS + center-distance dedup wins. Confidence: ${CONF}, NMS IoU: ${NMS_IOU}, center dedup: ${MIN_CENTER_DIST}px.<br><br>${details}`;
 
     // Annotated images
     const container = document.getElementById("annotatedImages");
