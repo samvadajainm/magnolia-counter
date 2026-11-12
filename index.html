@@ -264,7 +264,7 @@ const LOW_COUNT_THRESHOLD = 3;
 // Match Harshitha's proven settings
 const CONF            = 0.15;
 const NMS_IOU         = 0.45;
-const MIN_CENTER_DIST = 300;
+const MIN_CENTER_DIST = 50;  // only catch near-exact duplicates; NMS handles tile overlaps
 
 let session = null;
 
