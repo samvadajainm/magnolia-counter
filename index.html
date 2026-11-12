@@ -22,7 +22,6 @@
         header h1 { font-size: 1.6rem; font-weight: 700; color: #1a3a1a; margin-bottom: 0.3rem; }
         header p { font-size: 0.9rem; color: #5a6e5a; }
 
-        /* Upload area */
         .upload-area {
             background: #fff;
             border: 2px dashed #b8ccb8;
@@ -34,8 +33,7 @@
             position: relative;
         }
         .upload-area:hover, .upload-area.dragover {
-            border-color: #4a8c4a;
-            background: #f5faf5;
+            border-color: #4a8c4a; background: #f5faf5;
         }
         .upload-area input[type="file"] {
             position: absolute; inset: 0; opacity: 0; cursor: pointer;
@@ -44,7 +42,6 @@
         .upload-area h2 { font-size: 1rem; font-weight: 600; margin-bottom: 0.3rem; }
         .upload-area p { font-size: 0.85rem; color: #7a8e7a; }
 
-        /* File list */
         .file-list { margin-top: 1rem; }
         .file-chip {
             display: inline-flex; align-items: center; gap: 0.4rem;
@@ -57,7 +54,6 @@
         }
         .file-chip .remove:hover { color: #c44; }
 
-        /* Button */
         .btn-row { margin-top: 1.5rem; text-align: center; }
         .btn {
             display: inline-flex; align-items: center; gap: 0.5rem;
@@ -69,7 +65,6 @@
         .btn:hover { background: #1f5a1f; }
         .btn:disabled { background: #a0b8a0; cursor: not-allowed; }
 
-        /* Progress */
         .progress-section { display: none; margin-top: 1.5rem; }
         .progress-bar {
             background: #dde6dd; border-radius: 8px;
@@ -84,7 +79,6 @@
             font-size: 0.85rem; color: #5a6e5a;
         }
 
-        /* Model loading */
         .model-status {
             text-align: center; margin-bottom: 1rem;
             font-size: 0.8rem; color: #5a6e5a;
@@ -94,7 +88,6 @@
         .model-status.ready { color: #2a6e2a; background: #eef8ee; }
         .model-status.error { color: #8a2a2a; background: #f8eeee; }
 
-        /* Results */
         .results-section { display: none; margin-top: 2rem; }
         .total-card {
             background: #2a6e2a; color: #fff;
@@ -119,12 +112,12 @@
         .results-table table { width: 100%; border-collapse: collapse; }
         .results-table th {
             background: #f5f8f5; text-align: left;
-            padding: 0.7rem 0.8rem; font-size: 0.72rem;
+            padding: 0.7rem 0.6rem; font-size: 0.7rem;
             text-transform: uppercase; letter-spacing: 0.04em;
             color: #5a6e5a; font-weight: 600;
         }
         .results-table td {
-            padding: 0.65rem 0.8rem; font-size: 0.85rem;
+            padding: 0.6rem; font-size: 0.82rem;
             border-top: 1px solid #eef2ee;
         }
         .results-table tr:hover td { background: #fafcfa; }
@@ -133,8 +126,8 @@
         }
         .results-table .meta { font-size: 0.75rem; color: #8a9e8a; }
         .results-table .winner { background: #eef8ee; }
+        .results-table .skipped { color: #bbb; font-style: italic; }
 
-        /* Annotated images */
         .annotated-images { margin-top: 1.5rem; }
         .annotated-card {
             background: #fff; border-radius: 10px;
@@ -145,6 +138,7 @@
             display: flex; justify-content: space-between; align-items: center;
             padding: 0.7rem 1rem; background: #f5f8f5;
             border-bottom: 1px solid #eef2ee;
+            flex-wrap: wrap; gap: 0.3rem;
         }
         .annotated-card .card-header h3 {
             font-size: 0.85rem; font-weight: 600; color: #2a4a2a;
@@ -156,11 +150,8 @@
         .annotated-card .card-header .tile-badge {
             background: #3a5e8a; color: #fff; font-size: 0.68rem;
             font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 10px;
-            margin-left: 0.4rem;
         }
-        .annotated-card .card-body {
-            padding: 0.5rem; position: relative;
-        }
+        .annotated-card .card-body { padding: 0.5rem; }
         .annotated-card canvas {
             width: 100%; height: auto; display: block; border-radius: 6px;
         }
@@ -184,8 +175,8 @@
         @media (max-width: 500px) {
             body { padding: 1rem; }
             .total-card .big-number { font-size: 2.4rem; }
-            .results-table th, .results-table td { padding: 0.5rem 0.4rem; }
-            .results-table th { font-size: 0.65rem; }
+            .results-table th, .results-table td { padding: 0.4rem 0.3rem; }
+            .results-table th { font-size: 0.62rem; }
         }
     </style>
 </head>
@@ -194,7 +185,7 @@
 <div class="container">
     <header>
         <h1>Magnolia Plant Counter</h1>
-        <p>Upload drone images &bull; YOLOv8n + ONNX Runtime &bull; Multi-scale tiled inference</p>
+        <p>Upload drone images &bull; YOLOv8n + ONNX Runtime &bull; Adaptive multi-scale tiled inference</p>
     </header>
 
     <div class="model-status loading" id="modelStatus">Loading model (~12 MB)...</div>
@@ -232,10 +223,13 @@
                 <thead>
                     <tr>
                         <th>Image</th>
-                        <th>Tile 1024</th>
-                        <th>Tile 640</th>
+                        <th>LB</th>
+                        <th>1024</th>
+                        <th>640</th>
+                        <th>512</th>
+                        <th>320</th>
                         <th>Best</th>
-                        <th>Selected</th>
+                        <th>Scale</th>
                     </tr>
                 </thead>
                 <tbody id="resultsBody"></tbody>
@@ -243,45 +237,54 @@
         </div>
 
         <div class="pipeline-info" id="pipelineInfo"></div>
-
         <div class="annotated-images" id="annotatedImages"></div>
     </div>
 </div>
 
 <script>
 // ── Config ─────────────────────────────────────────────────
-const MODEL_URL       = "best.onnx";
-const INPUT_SIZE      = 640;   // YOLOv8n expects 640x640
+const MODEL_URL  = "best.onnx";
+const INPUT_SIZE = 640;
 
-// Tile sizes to try — each runs the full pipeline independently
+// Tile configs: run in order. Letterbox + 1024 + 640 always run.
+// 512 and 320 run only if needed (adaptive).
 const TILE_CONFIGS = [
-    { tileSize: 1024, overlap: 205, label: "1024×1024" },
-    { tileSize: 640,  overlap: 128, label: "640×640" },
+    { tileSize: 1024, overlap: 205, label: "1024" },
+    { tileSize: 640,  overlap: 128, label: "640"  },
+    { tileSize: 512,  overlap: 102, label: "512"  },
+    { tileSize: 320,  overlap: 64,  label: "320"  },
 ];
 
-const CONF            = 0.5;
-const NMS_IOU         = 0.3;
+// Indices: 0=1024, 1=640 always run; 2=512, 3=320 are adaptive
+const ALWAYS_RUN = 2;  // run first N tile configs always
+
+// If best count from always-run configs is <= this, try finer scales.
+const LOW_COUNT_THRESHOLD = 3;
+
+// Match Harshitha's proven settings
+const CONF            = 0.15;
+const NMS_IOU         = 0.45;
 const MIN_CENTER_DIST = 300;
 
 let session = null;
 
 // ── DOM refs ───────────────────────────────────────────────
-const fileInput      = document.getElementById("fileInput");
-const uploadArea     = document.getElementById("uploadArea");
-const fileList       = document.getElementById("fileList");
-const countBtn       = document.getElementById("countBtn");
-const btnText        = document.getElementById("btnText");
-const btnIcon        = document.getElementById("btnIcon");
+const fileInput       = document.getElementById("fileInput");
+const uploadArea      = document.getElementById("uploadArea");
+const fileList        = document.getElementById("fileList");
+const countBtn        = document.getElementById("countBtn");
+const btnText         = document.getElementById("btnText");
+const btnIcon         = document.getElementById("btnIcon");
 const progressSection = document.getElementById("progressSection");
-const progressFill   = document.getElementById("progressFill");
-const statusText     = document.getElementById("statusText");
-const resultsSection = document.getElementById("resultsSection");
-const resultsBody    = document.getElementById("resultsBody");
-const totalCount     = document.getElementById("totalCount");
-const totalSub       = document.getElementById("totalSub");
-const modelStatus    = document.getElementById("modelStatus");
-const modeBadge      = document.getElementById("modeBadge");
-const pipelineInfo   = document.getElementById("pipelineInfo");
+const progressFill    = document.getElementById("progressFill");
+const statusText      = document.getElementById("statusText");
+const resultsSection  = document.getElementById("resultsSection");
+const resultsBody     = document.getElementById("resultsBody");
+const totalCount      = document.getElementById("totalCount");
+const totalSub        = document.getElementById("totalSub");
+const modelStatus     = document.getElementById("modelStatus");
+const modeBadge       = document.getElementById("modeBadge");
+const pipelineInfo    = document.getElementById("pipelineInfo");
 
 let selectedFiles = [];
 
@@ -300,7 +303,6 @@ async function loadModel() {
     } catch (e) {
         modelStatus.textContent = "Failed to load model: " + e.message;
         modelStatus.className = "model-status error";
-        console.error("Model load error:", e);
     }
 }
 loadModel();
@@ -313,37 +315,38 @@ fileInput.addEventListener("change", () => { addFiles(fileInput.files); fileInpu
 
 function addFiles(files) {
     for (const f of files) {
-        if (!selectedFiles.some(s => s.name === f.name && s.size === f.size)) {
+        if (!selectedFiles.some(s => s.name === f.name && s.size === f.size))
             selectedFiles.push(f);
-        }
     }
     renderFileList();
     updateButtonState();
 }
-
 function renderFileList() {
     fileList.innerHTML = selectedFiles.map((f, i) =>
         `<span class="file-chip">${f.name}<span class="remove" onclick="removeFile(${i})">&times;</span></span>`
     ).join("");
 }
-
 function removeFile(i) {
     selectedFiles.splice(i, 1);
     renderFileList();
     updateButtonState();
 }
-
 function updateButtonState() {
     countBtn.disabled = selectedFiles.length === 0 || !session;
 }
 
-// ── Image loading helper ───────────────────────────────────
-function loadImage(file) {
-    return new Promise((resolve) => {
+function loadImageFromFile(file) {
+    return new Promise(resolve => {
         const img = new Image();
         img.onload = () => resolve(img);
         img.src = URL.createObjectURL(file);
     });
+}
+
+// ── Yield to browser ───────────────────────────────────────
+// Prevents "page unresponsive" by giving the event loop a turn
+function yieldToUI() {
+    return new Promise(resolve => setTimeout(resolve, 0));
 }
 
 // ── Tiling ─────────────────────────────────────────────────
@@ -351,57 +354,59 @@ function tileImage(canvas, tileSize, overlap) {
     const w = canvas.width, h = canvas.height;
     const stride = tileSize - overlap;
     const tiles = [];
-
     for (let row = 0; row < h; row += stride) {
         for (let col = 0; col < w; col += stride) {
             const rEnd = Math.min(row + tileSize, h);
             const cEnd = Math.min(col + tileSize, w);
-            const tileCanvas = document.createElement("canvas");
-            tileCanvas.width = tileSize;
-            tileCanvas.height = tileSize;
-            const tileCtx = tileCanvas.getContext("2d");
-            tileCtx.fillStyle = "rgb(114,114,114)";
-            tileCtx.fillRect(0, 0, tileSize, tileSize);
-            tileCtx.drawImage(canvas, col, row, cEnd - col, rEnd - row, 0, 0, cEnd - col, rEnd - row);
-            tiles.push({ canvas: tileCanvas, row, col });
+            const tc = document.createElement("canvas");
+            tc.width = tileSize; tc.height = tileSize;
+            const tCtx = tc.getContext("2d");
+            tCtx.fillStyle = "rgb(114,114,114)";
+            tCtx.fillRect(0, 0, tileSize, tileSize);
+            tCtx.drawImage(canvas, col, row, cEnd - col, rEnd - row, 0, 0, cEnd - col, rEnd - row);
+            tiles.push({ canvas: tc, row, col });
         }
     }
     return tiles;
 }
 
-// ── Preprocessing: tile canvas → ONNX tensor ──────────────
-function preprocessTile(tileCanvas, inputSize) {
-    const resized = document.createElement("canvas");
-    resized.width = inputSize;
-    resized.height = inputSize;
-    const rCtx = resized.getContext("2d", { willReadFrequently: true });
-    rCtx.fillStyle = "rgb(114,114,114)";
-    rCtx.fillRect(0, 0, inputSize, inputSize);
-    rCtx.drawImage(tileCanvas, 0, 0, inputSize, inputSize);
-    const imgData = rCtx.getImageData(0, 0, inputSize, inputSize).data;
-    const float32 = new Float32Array(3 * inputSize * inputSize);
-    for (let i = 0; i < inputSize * inputSize; i++) {
-        float32[i]                              = imgData[i * 4]     / 255.0;
-        float32[i + inputSize * inputSize]      = imgData[i * 4 + 1] / 255.0;
-        float32[i + 2 * inputSize * inputSize]  = imgData[i * 4 + 2] / 255.0;
-    }
-    return new ort.Tensor("float32", float32, [1, 3, inputSize, inputSize]);
+function countTiles(imgW, imgH, tileSize, overlap) {
+    const stride = tileSize - overlap;
+    return Math.ceil(imgW / stride) * Math.ceil(imgH / stride);
 }
 
-// ── Parse YOLOv8 output ───────────────────────────────────
-function parseYOLOv8Output(output, tileRow, tileCol, tileSize, inputSize, confThresh) {
-    const data = output.data;
-    const numDetections = output.dims[2]; // 8400
-    const boxes = [];
-    const scale = tileSize / inputSize;
+// ── Preprocessing ──────────────────────────────────────────
+function preprocessTile(tileCanvas) {
+    const c = document.createElement("canvas");
+    c.width = INPUT_SIZE; c.height = INPUT_SIZE;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.fillStyle = "rgb(114,114,114)";
+    ctx.fillRect(0, 0, INPUT_SIZE, INPUT_SIZE);
+    ctx.drawImage(tileCanvas, 0, 0, INPUT_SIZE, INPUT_SIZE);
+    const px = ctx.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE).data;
+    const f = new Float32Array(3 * INPUT_SIZE * INPUT_SIZE);
+    const n = INPUT_SIZE * INPUT_SIZE;
+    for (let i = 0; i < n; i++) {
+        f[i]         = px[i * 4]     / 255;
+        f[i + n]     = px[i * 4 + 1] / 255;
+        f[i + 2 * n] = px[i * 4 + 2] / 255;
+    }
+    return new ort.Tensor("float32", f, [1, 3, INPUT_SIZE, INPUT_SIZE]);
+}
 
-    for (let i = 0; i < numDetections; i++) {
-        const conf = data[4 * numDetections + i];
-        if (conf < confThresh) continue;
-        let cx = data[0 * numDetections + i] * scale + tileCol;
-        let cy = data[1 * numDetections + i] * scale + tileRow;
-        let w  = data[2 * numDetections + i] * scale;
-        let h  = data[3 * numDetections + i] * scale;
+// ── Parse output ───────────────────────────────────────────
+function parseOutput(output, tileRow, tileCol, tileSize) {
+    const data = output.data;
+    const nd = output.dims[2];
+    const boxes = [];
+    const scale = tileSize / INPUT_SIZE;
+    for (let i = 0; i < nd; i++) {
+        const conf = data[4 * nd + i];
+        if (conf < CONF) continue;
+        const cx = data[0 * nd + i] * scale + tileCol;
+        const cy = data[1 * nd + i] * scale + tileRow;
+        const w  = data[2 * nd + i] * scale;
+        const h  = data[3 * nd + i] * scale;
         boxes.push([cx, cy, w, h, conf]);
     }
     return boxes;
@@ -409,170 +414,270 @@ function parseYOLOv8Output(output, tileRow, tileCol, tileSize, inputSize, confTh
 
 // ── NMS ────────────────────────────────────────────────────
 function computeIoU(b1, b2) {
-    const x1_1 = b1[0] - b1[2] / 2, y1_1 = b1[1] - b1[3] / 2;
-    const x2_1 = b1[0] + b1[2] / 2, y2_1 = b1[1] + b1[3] / 2;
-    const x1_2 = b2[0] - b2[2] / 2, y1_2 = b2[1] - b2[3] / 2;
-    const x2_2 = b2[0] + b2[2] / 2, y2_2 = b2[1] + b2[3] / 2;
-    const inter = Math.max(0, Math.min(x2_1, x2_2) - Math.max(x1_1, x1_2)) *
-                  Math.max(0, Math.min(y2_1, y2_2) - Math.max(y1_1, y1_2));
+    const ax1 = b1[0] - b1[2] / 2, ay1 = b1[1] - b1[3] / 2;
+    const ax2 = b1[0] + b1[2] / 2, ay2 = b1[1] + b1[3] / 2;
+    const bx1 = b2[0] - b2[2] / 2, by1 = b2[1] - b2[3] / 2;
+    const bx2 = b2[0] + b2[2] / 2, by2 = b2[1] + b2[3] / 2;
+    const inter = Math.max(0, Math.min(ax2, bx2) - Math.max(ax1, bx1)) *
+                  Math.max(0, Math.min(ay2, by2) - Math.max(ay1, by1));
     const union = b1[2] * b1[3] + b2[2] * b2[3] - inter;
     return union > 0 ? inter / union : 0;
 }
 
-function nmsBoxes(boxes, iouThreshold) {
+function nmsBoxes(boxes) {
     if (!boxes.length) return [];
     boxes.sort((a, b) => b[4] - a[4]);
     const keep = [];
     while (boxes.length) {
         const best = boxes.shift();
         keep.push(best);
-        boxes = boxes.filter(b => computeIoU(best, b) < iouThreshold);
+        boxes = boxes.filter(b => computeIoU(best, b) < NMS_IOU);
     }
     return keep;
 }
 
-// ── Center-distance dedup ──────────────────────────────────
-function centerDistanceDedup(boxes, minDist) {
+function centerDedup(boxes) {
     if (!boxes.length) return [];
     boxes.sort((a, b) => b[4] - a[4]);
     const keep = [];
     for (const box of boxes) {
         let tooClose = false;
-        for (const kept of keep) {
-            const dist = Math.sqrt((box[0] - kept[0]) ** 2 + (box[1] - kept[1]) ** 2);
-            if (dist < minDist) { tooClose = true; break; }
+        for (const k of keep) {
+            if (Math.hypot(box[0] - k[0], box[1] - k[1]) < MIN_CENTER_DIST) {
+                tooClose = true; break;
+            }
         }
         if (!tooClose) keep.push(box);
     }
     return keep;
 }
 
-// ── Run tiled pipeline for one tile config ─────────────────
-async function runTiledPipeline(sourceCanvas, tileSize, overlap, onProgress) {
-    const tiles = tileImage(sourceCanvas, tileSize, overlap);
+// ── Letterbox pass (Harshitha's approach) ──────────────────
+// Single 640×640 pass with aspect-ratio-preserving resize + gray padding.
+// Fast (1 inference) and works well when plants are clearly visible.
+async function runLetterbox(sourceCanvas) {
+    const imgW = sourceCanvas.width, imgH = sourceCanvas.height;
+    const scale = Math.min(INPUT_SIZE / imgW, INPUT_SIZE / imgH);
+    const newW = Math.round(imgW * scale);
+    const newH = Math.round(imgH * scale);
+    const padX = Math.round((INPUT_SIZE - newW) / 2);
+    const padY = Math.round((INPUT_SIZE - newH) / 2);
+
+    // Create letterboxed canvas
+    const lbCanvas = document.createElement("canvas");
+    lbCanvas.width = INPUT_SIZE; lbCanvas.height = INPUT_SIZE;
+    const lbCtx = lbCanvas.getContext("2d");
+    lbCtx.fillStyle = "rgb(114,114,114)";
+    lbCtx.fillRect(0, 0, INPUT_SIZE, INPUT_SIZE);
+    lbCtx.drawImage(sourceCanvas, 0, 0, imgW, imgH, padX, padY, newW, newH);
+
+    // Preprocess directly (already 640×640)
+    const px = lbCtx.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE).data;
+    const f = new Float32Array(3 * INPUT_SIZE * INPUT_SIZE);
+    const n = INPUT_SIZE * INPUT_SIZE;
+    for (let i = 0; i < n; i++) {
+        f[i]         = px[i * 4]     / 255;
+        f[i + n]     = px[i * 4 + 1] / 255;
+        f[i + 2 * n] = px[i * 4 + 2] / 255;
+    }
+    const tensor = new ort.Tensor("float32", f, [1, 3, INPUT_SIZE, INPUT_SIZE]);
+    const results = await session.run({ [session.inputNames[0]]: tensor });
+    const output = results[session.outputNames[0]];
+
+    // Parse output and map boxes back to original image coords
+    const data = output.data;
+    const nd = output.dims[2];
+    const boxes = [];
+    for (let i = 0; i < nd; i++) {
+        const conf = data[4 * nd + i];
+        if (conf < CONF) continue;
+        // Model outputs are in 640×640 letterbox space; map back to original
+        const cx = (data[0 * nd + i] - padX) / scale;
+        const cy = (data[1 * nd + i] - padY) / scale;
+        const w  = data[2 * nd + i] / scale;
+        const h  = data[3 * nd + i] / scale;
+        // Skip boxes that fall in the padding
+        if (cx < 0 || cy < 0 || cx > imgW || cy > imgH) continue;
+        boxes.push([cx, cy, w, h, conf]);
+    }
+
+    const afterNms = nmsBoxes(boxes);
+    await yieldToUI();
+
+    return {
+        tileSize: 0,
+        label: "LB",
+        tilesProcessed: 1,
+        rawDetections: boxes.length,
+        afterNms: afterNms.length,
+        plantCount: afterNms.length,
+        boxes: afterNms,
+    };
+}
+
+// ── Run one tile config ────────────────────────────────────
+async function runScale(sourceCanvas, cfg, onTileProgress) {
+    const tiles = tileImage(sourceCanvas, cfg.tileSize, cfg.overlap);
     let allBoxes = [];
 
     for (let t = 0; t < tiles.length; t++) {
-        const { canvas: tileCanvas, row, col } = tiles[t];
-        const tensor = preprocessTile(tileCanvas, INPUT_SIZE);
-        const inputName = session.inputNames[0];
-        const results = await session.run({ [inputName]: tensor });
+        const { canvas: tc, row, col } = tiles[t];
+        const tensor = preprocessTile(tc);
+        const results = await session.run({ [session.inputNames[0]]: tensor });
         const output = results[session.outputNames[0]];
-        const boxes = parseYOLOv8Output(output, row, col, tileSize, INPUT_SIZE, CONF);
-        allBoxes = allBoxes.concat(boxes);
-        if (onProgress) onProgress(t + 1, tiles.length);
+        allBoxes = allBoxes.concat(parseOutput(output, row, col, cfg.tileSize));
+
+        if (onTileProgress) onTileProgress(t + 1, tiles.length);
+
+        // Yield to the browser every tile so it doesn't freeze
+        await yieldToUI();
     }
 
-    const rawCount = allBoxes.length;
-    const afterNms = nmsBoxes(allBoxes, NMS_IOU);
-    const afterDedup = centerDistanceDedup(afterNms, MIN_CENTER_DIST);
+    const raw = allBoxes.length;
+    const afterNms = nmsBoxes(allBoxes);
+    const afterDedup = centerDedup(afterNms);
 
     return {
-        tileSize,
+        tileSize: cfg.tileSize,
+        label: cfg.label,
         tilesProcessed: tiles.length,
-        rawDetections: rawCount,
+        rawDetections: raw,
         afterNms: afterNms.length,
         plantCount: afterDedup.length,
         boxes: afterDedup,
     };
 }
 
-// ── Process one image with all tile configs ────────────────
-async function processImage(file, onProgress) {
-    const img = await loadImage(file);
-
+// ── Process one image: adaptive multi-scale ────────────────
+async function processImage(file, imageIdx, totalImages, updateOverallProgress) {
+    const img = await loadImageFromFile(file);
     const canvas = document.createElement("canvas");
     canvas.width = img.naturalWidth;
     canvas.height = img.naturalHeight;
     canvas.getContext("2d").drawImage(img, 0, 0);
     URL.revokeObjectURL(img.src);
 
-    // Count total tiles across all configs for progress
-    const allTileCounts = TILE_CONFIGS.map(cfg => {
-        const stride = cfg.tileSize - cfg.overlap;
-        const cols = Math.ceil(canvas.width / stride);
-        const rows = Math.ceil(canvas.height / stride);
-        return cols * rows;
-    });
-    const grandTotal = allTileCounts.reduce((a, b) => a + b, 0);
-    let completed = 0;
+    const imgW = canvas.width, imgH = canvas.height;
 
-    const pipelineResults = [];
+    const scaleResults = [];
 
-    for (let c = 0; c < TILE_CONFIGS.length; c++) {
-        const cfg = TILE_CONFIGS[c];
-        const result = await runTiledPipeline(canvas, cfg.tileSize, cfg.overlap, (done, total) => {
-            if (onProgress) onProgress(completed + done, grandTotal, cfg.label);
-        });
-        result.label = cfg.label;
-        pipelineResults.push(result);
-        completed += allTileCounts[c];
+    // ── Letterbox pass (fast, single inference, like Harshitha's) ──
+    updateOverallProgress(
+        `Image ${imageIdx + 1}/${totalImages}: ${file.name} — letterbox pass...`,
+        imageIdx / totalImages
+    );
+    const lbResult = await runLetterbox(canvas);
+    scaleResults.push(lbResult);
+
+    // ── Tiled passes: phase 1 (1024, 640 always run) ──
+    const phase1Configs = TILE_CONFIGS.slice(0, ALWAYS_RUN);
+    const phase2Configs = TILE_CONFIGS.slice(ALWAYS_RUN);
+
+    let phase1TotalTiles = 0;
+    for (const cfg of phase1Configs) {
+        phase1TotalTiles += countTiles(imgW, imgH, cfg.tileSize, cfg.overlap);
     }
 
-    // Pick the best: highest plant count wins
-    let bestIdx = 0;
-    for (let i = 1; i < pipelineResults.length; i++) {
-        if (pipelineResults[i].plantCount > pipelineResults[bestIdx].plantCount) {
-            bestIdx = i;
+    let tilesCompleted = 0;
+
+    for (const cfg of phase1Configs) {
+        const result = await runScale(canvas, cfg, (done, total) => {
+            const td = tilesCompleted + done;
+            updateOverallProgress(
+                `Image ${imageIdx + 1}/${totalImages}: ${file.name} — ${cfg.label} tiles (${done}/${total})`,
+                (imageIdx + 0.05 + 0.65 * td / phase1TotalTiles) / totalImages
+            );
+        });
+        tilesCompleted += result.tilesProcessed;
+        scaleResults.push(result);
+    }
+
+    // ── Phase 2: finer tiles if counts are still low ──
+    let bestSoFar = Math.max(...scaleResults.map(r => r.plantCount));
+    let needsFiner = bestSoFar <= LOW_COUNT_THRESHOLD;
+
+    if (needsFiner) {
+        for (const cfg of phase2Configs) {
+            updateOverallProgress(
+                `Image ${imageIdx + 1}/${totalImages}: ${file.name} — low count, trying ${cfg.label} tiles...`,
+                (imageIdx + 0.75) / totalImages
+            );
+
+            const result = await runScale(canvas, cfg, (done, total) => {
+                updateOverallProgress(
+                    `Image ${imageIdx + 1}/${totalImages}: ${file.name} — ${cfg.label} tiles (${done}/${total})`,
+                    (imageIdx + 0.75 + 0.25 * done / total) / totalImages
+                );
+            });
+            scaleResults.push(result);
+
+            if (result.plantCount > bestSoFar * 2 && result.plantCount > LOW_COUNT_THRESHOLD) {
+                break;
+            }
+            bestSoFar = Math.max(bestSoFar, result.plantCount);
         }
     }
 
-    const best = pipelineResults[bestIdx];
+    // Pick best: highest count
+    let bestIdx = 0;
+    for (let i = 1; i < scaleResults.length; i++) {
+        if (scaleResults[i].plantCount > scaleResults[bestIdx].plantCount) {
+            bestIdx = i;
+        }
+    }
+    const best = scaleResults[bestIdx];
 
     return {
         filename: file.name,
-        pipelineResults,
+        scaleResults,
         bestIdx,
         plantCount: best.plantCount,
         boxes: best.boxes,
         selectedTile: best.label,
         sourceCanvas: canvas,
+        triedFiner: needsFiner,
     };
 }
 
 // ── Draw annotated image ──────────────────────────────────
 function drawAnnotatedImage(sourceCanvas, boxes) {
-    const annoCanvas = document.createElement("canvas");
-    annoCanvas.width = sourceCanvas.width;
-    annoCanvas.height = sourceCanvas.height;
-    const ctx = annoCanvas.getContext("2d");
-
+    const ac = document.createElement("canvas");
+    ac.width = sourceCanvas.width;
+    ac.height = sourceCanvas.height;
+    const ctx = ac.getContext("2d");
     ctx.drawImage(sourceCanvas, 0, 0);
 
-    const shortSide = Math.min(sourceCanvas.width, sourceCanvas.height);
-    const lineWidth = Math.max(2, Math.round(shortSide / 500));
-    const fontSize = Math.max(12, Math.round(shortSide / 300));
+    const shortSide = Math.min(ac.width, ac.height);
+    const lw = Math.max(2, Math.round(shortSide / 500));
+    const fs = Math.max(12, Math.round(shortSide / 300));
 
     ctx.strokeStyle = "#00FF00";
-    ctx.lineWidth = lineWidth;
-    ctx.font = `bold ${fontSize}px sans-serif`;
+    ctx.lineWidth = lw;
+    ctx.font = `bold ${fs}px sans-serif`;
 
     for (const [cx, cy, w, h, conf] of boxes) {
-        const x1 = cx - w / 2;
-        const y1 = cy - h / 2;
-
+        const x1 = cx - w / 2, y1 = cy - h / 2;
         ctx.strokeRect(x1, y1, w, h);
-
         const label = `${(conf * 100).toFixed(0)}%`;
-        const textWidth = ctx.measureText(label).width;
-        const labelH = fontSize + 4;
+        const tw = ctx.measureText(label).width;
+        const lh = fs + 4;
         ctx.fillStyle = "rgba(0, 180, 0, 0.7)";
-        ctx.fillRect(x1, y1 - labelH, textWidth + 6, labelH);
+        ctx.fillRect(x1, y1 - lh, tw + 6, lh);
         ctx.fillStyle = "#fff";
         ctx.fillText(label, x1 + 3, y1 - 4);
     }
 
     const countLabel = `${boxes.length} plants detected`;
-    const wmFontSize = Math.max(16, Math.round(shortSide / 150));
-    ctx.font = `bold ${wmFontSize}px sans-serif`;
-    const wmPad = Math.round(wmFontSize * 0.6);
-    const wmTextWidth = ctx.measureText(countLabel).width;
+    const wmFs = Math.max(16, Math.round(shortSide / 150));
+    ctx.font = `bold ${wmFs}px sans-serif`;
+    const pad = Math.round(wmFs * 0.6);
+    const wmTw = ctx.measureText(countLabel).width;
     ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-    ctx.fillRect(wmPad, wmPad, wmTextWidth + wmPad * 2, wmFontSize + wmPad);
+    ctx.fillRect(pad, pad, wmTw + pad * 2, wmFs + pad);
     ctx.fillStyle = "#00FF00";
-    ctx.fillText(countLabel, wmPad * 2, wmPad + wmFontSize - 2);
+    ctx.fillText(countLabel, pad * 2, pad + wmFs - 2);
 
-    return annoCanvas;
+    return ac;
 }
 
 // ── Count button handler ───────────────────────────────────
@@ -589,89 +694,95 @@ countBtn.addEventListener("click", async () => {
     let totalPlants = 0;
 
     for (let f = 0; f < selectedFiles.length; f++) {
-        const file = selectedFiles[f];
-
         try {
-            const result = await processImage(file, (done, total, currentLabel) => {
-                const imageBase = f / selectedFiles.length;
-                const imageProgress = imageBase + (done / total) / selectedFiles.length;
-                progressFill.style.width = (imageProgress * 100).toFixed(1) + "%";
-                statusText.textContent = `Image ${f + 1}/${selectedFiles.length}: ${file.name} — ${currentLabel} tile ${done}/${total}`;
-            });
+            const result = await processImage(selectedFiles[f], f, selectedFiles.length,
+                (msg, progress) => {
+                    statusText.textContent = msg;
+                    progressFill.style.width = (progress * 100).toFixed(1) + "%";
+                }
+            );
             results.push(result);
             totalPlants += result.plantCount;
         } catch (err) {
-            results.push({ filename: file.name, error: err.message, plantCount: 0 });
-            console.error("Error processing", file.name, err);
+            results.push({ filename: selectedFiles[f].name, error: err.message, plantCount: 0 });
         }
     }
 
-    // Show results
+    // Display
     progressFill.style.width = "100%";
     statusText.textContent = "Done! Drawing annotations...";
+    await yieldToUI();
 
     totalCount.textContent = totalPlants.toLocaleString();
     totalSub.textContent = `across ${results.length} image(s)`;
-    modeBadge.textContent = "Multi-scale: best of " + TILE_CONFIGS.map(c => c.label).join(" vs ");
+    modeBadge.textContent = "Adaptive multi-scale tiled inference";
 
+    // Build table rows
     resultsBody.innerHTML = results.map(r => {
         if (r.error) {
-            return `<tr><td>${r.filename}</td><td colspan="3" style="color:#c44;font-size:0.8rem">${r.error}</td><td>—</td></tr>`;
+            return `<tr><td>${r.filename}</td><td colspan="5" style="color:#c44;font-size:0.8rem">${r.error}</td><td>—</td></tr>`;
         }
-        const p = r.pipelineResults;
-        // Find which indices correspond to 1024 and 640
-        const r1024 = p.find(x => x.tileSize === 1024);
-        const r640  = p.find(x => x.tileSize === 640);
+        // Map scale results by label
+        const byLabel = {};
+        r.scaleResults.forEach(s => { byLabel[s.label] = s; });
+
+        const cell = (label) => {
+            const s = byLabel[label];
+            if (!s) return `<td class="meta skipped">—</td>`;
+            const isWinner = r.selectedTile === label;
+            const tInfo = s.tilesProcessed === 1 ? "1" : `${s.tilesProcessed}t`;
+            return `<td class="meta ${isWinner ? 'winner' : ''}">${s.plantCount} <span style="font-size:0.6rem;color:#aaa">(${tInfo})</span></td>`;
+        };
+
         return `<tr>
-            <td>${r.filename}</td>
-            <td class="meta ${r.selectedTile === '1024×1024' ? 'winner' : ''}">${r1024 ? r1024.plantCount : '—'} <span style="font-size:0.65rem;color:#aaa">(${r1024 ? r1024.tilesProcessed : 0}t)</span></td>
-            <td class="meta ${r.selectedTile === '640×640' ? 'winner' : ''}">${r640 ? r640.plantCount : '—'} <span style="font-size:0.65rem;color:#aaa">(${r640 ? r640.tilesProcessed : 0}t)</span></td>
+            <td>${r.filename}${r.triedFiner ? ' <span style="font-size:0.6rem;color:#8a6e2a" title="Low count detected, tried finer tiles">&#x1F50D;</span>' : ''}</td>
+            ${cell("LB")}
+            ${cell("1024")}
+            ${cell("640")}
+            ${cell("512")}
+            ${cell("320")}
             <td class="count-cell">${r.plantCount.toLocaleString()}</td>
             <td class="meta">${r.selectedTile}</td>
         </tr>`;
     }).join("");
 
-    // Pipeline explanation
-    const selectionSummary = results.filter(r => !r.error).map(r => {
-        return `<strong>${r.filename}</strong>: ${r.selectedTile} selected (${r.pipelineResults.map(p => `${p.label}=${p.plantCount}`).join(", ")})`;
+    // Pipeline info
+    const details = results.filter(r => !r.error).map(r => {
+        const counts = r.scaleResults.map(s => `${s.label}=${s.plantCount}`).join(", ");
+        const finerNote = r.triedFiner ? " (tried finer scales due to low initial count)" : "";
+        return `<strong>${r.filename}</strong>: selected ${r.selectedTile} (${counts})${finerNote}`;
     }).join("<br>");
-    pipelineInfo.innerHTML = `<strong>How it works:</strong> Each image is tiled at two scales (1024×1024 and 640×640). Both go through NMS + center-distance dedup independently. The tile size yielding the highest plant count is selected as the final result — larger tiles work well for spaced-out plants, smaller tiles catch densely packed ones.<br><br>${selectionSummary}`;
 
-    // Draw annotated images
-    const annotatedContainer = document.getElementById("annotatedImages");
-    annotatedContainer.innerHTML = "";
+    pipelineInfo.innerHTML = `<strong>How it works:</strong> Each image first gets a fast <em>letterbox</em> pass (full image → 640×640, like Harshitha's model), then tiled inference at 1024×1024 and 640×640. If all scales produce very low counts (≤${LOW_COUNT_THRESHOLD}), the pipeline tries 512 and 320 tiles which magnify small plants. The scale with the highest count after NMS + dedup wins. Confidence: ${CONF}, NMS IoU: ${NMS_IOU}.<br><br>${details}`;
+
+    // Annotated images
+    const container = document.getElementById("annotatedImages");
+    container.innerHTML = "";
 
     for (const r of results) {
         if (r.error || !r.sourceCanvas) continue;
-
-        const annoCanvas = drawAnnotatedImage(r.sourceCanvas, r.boxes);
-
+        const ac = drawAnnotatedImage(r.sourceCanvas, r.boxes);
         const card = document.createElement("div");
         card.className = "annotated-card";
-
-        const header = document.createElement("div");
-        header.className = "card-header";
-        header.innerHTML = `<h3>${r.filename}</h3><span class="badge">${r.plantCount} plants</span><span class="tile-badge">${r.selectedTile}</span>`;
-
+        const hdr = document.createElement("div");
+        hdr.className = "card-header";
+        hdr.innerHTML = `<h3>${r.filename}</h3><span class="badge">${r.plantCount} plants</span><span class="tile-badge">tile ${r.selectedTile}</span>`;
         const body = document.createElement("div");
         body.className = "card-body";
-        body.appendChild(annoCanvas);
-
-        const dlBtn = document.createElement("a");
-        dlBtn.className = "download-btn";
-        dlBtn.textContent = "⬇ Download annotated image";
-        dlBtn.download = r.filename.replace(/\.[^.]+$/, "") + "_annotated.jpg";
-        dlBtn.href = annoCanvas.toDataURL("image/jpeg", 0.92);
-        body.appendChild(dlBtn);
-
-        card.appendChild(header);
+        body.appendChild(ac);
+        const dl = document.createElement("a");
+        dl.className = "download-btn";
+        dl.textContent = "⬇ Download annotated image";
+        dl.download = r.filename.replace(/\.[^.]+$/, "") + "_annotated.jpg";
+        dl.href = ac.toDataURL("image/jpeg", 0.92);
+        body.appendChild(dl);
+        card.appendChild(hdr);
         card.appendChild(body);
-        annotatedContainer.appendChild(card);
+        container.appendChild(card);
     }
 
     statusText.textContent = "Done!";
     resultsSection.style.display = "block";
-
     btnText.textContent = "Count Plants";
     btnIcon.textContent = "🔬";
     countBtn.disabled = false;
